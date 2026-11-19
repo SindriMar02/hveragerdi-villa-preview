@@ -279,11 +279,11 @@
      GET /booking/nights strikes the taken nights per house (dates only); POST /booking/request is
      re-checked by the engine (capacity, shortest stay, lead time, overlap), so the sheet is never
      the only guard. If the engine cannot be reached, nothing is struck and the sheet says so on send. */
-  const API = /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
-    ? 'http://riverhouses.localhost:8792'
-    : 'https://sndr-demo-rh.sindri-381.workers.dev';
+  /* Only local QA has an engine today. The GitHub preview calls nothing (no failed request on a page a
+     client sees) and the sheet runs as a plain design preview until Sindri picks where the demo engine lives. */
+  const API = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://riverhouses.localhost:8792' : null;
   const NIGHTS = { v1: new Set(), v2: new Set() };
-  const nightsReady = Promise.all(['v1', 'v2'].map((u) =>
+  const nightsReady = !API ? Promise.resolve(false) : Promise.all(['v1', 'v2'].map((u) =>
     fetch(`${API}/booking/nights?unit=${u}&days=400`).then((r) => (r.ok ? r.json() : null)).catch(() => null)
   )).then((answers) => {
     let got = false;
