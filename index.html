@@ -12,7 +12,9 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preload" href="assets/fonts/CabinetGrotesk-Regular.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/dm-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="assets/img/hero-1440.webp" as="image" imagesrcset="assets/img/hero-900.webp 900w, assets/img/hero-1440.webp 1440w, assets/img/hero-2400.webp 2400w" imagesizes="100vw">
+<link rel="preload" href="assets/fonts/newsreader-latin-300-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/img/hero-1440.webp" as="image" imagesrcset="assets/img/hero-900.webp 900w, assets/img/hero-1440.webp 1440w, assets/img/hero-2400.webp 2400w" imagesizes="100vw" media="(min-aspect-ratio: 4/5)">
+<link rel="preload" href="assets/img/hero-portrait-900.webp" as="image" media="(max-aspect-ratio: 4/5)">
 <script>document.documentElement.className='js';</script>
 <script>/* focus-guard: a focus ring only for people using a keyboard.
 
@@ -44,8 +46,8 @@
 
 <header class="header" data-header>
   <a class="logo" href="#top" aria-label="River Houses, home">
-    <svg class="mark" viewBox="0 0 48 24" aria-hidden="true"><path d="M2 20 12 8l10 12M26 20 36 8l10 12"/><path class="mark-river" d="M1 22.5c6-1.6 10 1.6 16 0s10 1.6 16 0 10 1.6 14 0"/></svg>
-    <span class="logo-word">River Houses</span>
+    <span class="logo-word" aria-hidden="true"><em>River</em> Houses</span>
+    <span class="logo-sub" aria-hidden="true">Two riverfront houses<span class="logo-sub-x"> · South Iceland</span></span>
   </a>
   <nav class="nav" aria-label="Site">
     <a href="#deck">The Deck Villa</a>
@@ -71,10 +73,16 @@
   <!-- 1 HERO (source: section.hero, img.cover 100vh, centred H1 with serif swap word, dotted pill low centre) -->
   <section class="hero" id="top" aria-labelledby="hero-h">
     <div class="hero-media" data-hero-media>
-      <img src="assets/img/hero-1440.webp" srcset="assets/img/hero-900.webp 900w, assets/img/hero-1440.webp 1440w, assets/img/hero-2400.webp 2400w" sizes="100vw" alt="The river running through green banks below a mountain, with the Deck Villa among the trees in the distance" fetchpriority="high" decoding="async">
+      <picture>
+        <source media="(max-aspect-ratio: 4/5)" srcset="assets/img/hero-portrait-900.webp">
+        <img src="assets/img/hero-1440.webp" srcset="assets/img/hero-900.webp 900w, assets/img/hero-1440.webp 1440w, assets/img/hero-2400.webp 2400w" sizes="100vw" alt="The river at dusk with mist on the water, the Deck Villa's lit windows among the trees below the mountain (Kristín's photo, re-lit for evening)" fetchpriority="high" decoding="async">
+      </picture>
     </div>
     <div class="hero-content">
-      <h1 class="h1 hero-h" id="hero-h" data-split>Two houses by the <em>river.</em></h1>
+      <div class="hero-title">
+        <h1 class="h1 hero-h" id="hero-h" data-split aria-label="Two houses by the river.">Two houses by the <span class="flip" data-flip aria-hidden="true"><span class="flip-in">river</span></span>.</h1>
+        <p class="hero-sub">Hot tubs over the water, room for ten in each house, and trails from the door, half an hour from Reykjavík.</p>
+      </div>
       <p class="hero-place label">Hveragerði · South Iceland</p>
       <button class="pill hero-pill" type="button" data-book data-house="v1" aria-haspopup="dialog"><span>Check dates</span></button>
     </div>

@@ -8,8 +8,9 @@
   const desk = matchMedia('(min-width: 1024px)');
   const G = window.gsap, ST = window.ScrollTrigger;
   const motion = !!(G && ST) && !reduce.matches;
-  if (motion) { G.registerPlugin(ST); root.classList.add('mo'); }
+  if (motion) { G.registerPlugin(ST); root.classList.add('mo'); ST.config({ ignoreMobileResize: true }); }
   const OUT = 'expo.out';
+  const SOFT = 'power3.out'; // reveals: a long, even settle (expo starts too fast to read as calm)
 
   /* ---------- LENIS (fine pointers only; native touch) ---------- */
   let lenis = null;
@@ -49,6 +50,10 @@
             w.appendChild(i); frag.appendChild(w);
           });
           n.replaceWith(frag);
+        } else if (n.nodeType === 1 && n.hasAttribute('data-flip')) {
+          const w = document.createElement('span'); w.className = cls;
+          const i = document.createElement('span'); i.className = cls + '-i';
+          n.replaceWith(w); i.appendChild(n); w.appendChild(i);
         } else if (n.nodeType === 1) walk(n);
       });
     };
@@ -79,34 +84,69 @@
   const header = document.querySelector('[data-header]');
   const intro = () => {
     if (!motion) return;
-    heroH.dataset.src = heroH.innerHTML;
-    heroH.setAttribute('aria-label', heroH.textContent.replace(/\s+/g, ' ').trim());
     wrapWords(heroH, 'w');
     heroH.querySelectorAll('.w').forEach((w) => w.setAttribute('aria-hidden', 'true'));
     const tl = G.timeline();
     tl.fromTo(heroImg, { scale: desk.matches ? 1.08 : 1.04 }, { scale: 1, duration: 1.8, ease: OUT }, 0)
       .to(heroH.querySelectorAll('.w-i'), { yPercent: 0, y: 0, duration: 0.95, ease: OUT, stagger: 0.07 }, 0.2)
-      .to([header, hero.querySelector('.hero-place'), hero.querySelector('.hero-pill')], { opacity: 1, duration: 0.7, ease: OUT, stagger: 0.08 }, 0.75)
-      .fromTo([hero.querySelector('.hero-place'), hero.querySelector('.hero-pill')], { y: 12 }, { y: 0, duration: 0.7, ease: OUT, stagger: 0.08 }, 0.75)
+      .fromTo(hero.querySelector('.hero-sub'), { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 1.1, ease: SOFT }, 0.7)
+      .to([header, hero.querySelector('.hero-place'), hero.querySelector('.hero-pill')], { opacity: 1, duration: 0.9, ease: SOFT, stagger: 0.1 }, 0.95)
+      .fromTo([hero.querySelector('.hero-place'), hero.querySelector('.hero-pill')], { y: 12 }, { y: 0, duration: 0.9, ease: SOFT, stagger: 0.1 }, 0.95)
+      .add(startFlip, 2.2)
       // words stay wrapped at their end transform: clearing it would drop them to the CSS start state, and swapping back to
       // plain text nudges the line 2 px (inline-block baseline), so neither happens
     // exit (scrub)
     G.to(hero.querySelector('[data-hero-media]'), { yPercent: desk.matches ? 14 : 8, ease: 'none', scrollTrigger: { trigger: hero, start: 'top top', end: 'bottom top', scrub: true } });
     G.to(hero.querySelector('.hero-content'), { y: -60, opacity: 0, ease: 'none', scrollTrigger: { trigger: hero, start: 'top top', end: '60% top', scrub: true } });
   };
+  /* ---------- "river." changes typeface (Sindri 19 Nov) ----------
+     Out, then in: the old letters roll up and away, the word's box tweens to the next font's width (the centred
+     line slides, never jumps), the new letters roll up into place. Every face keeps line-height 1 inside the 65 px
+     line, so the hero never moves vertically. Pauses off screen and in a hidden tab; never runs with reduced motion. */
+  function startFlip() {
+    const flip = heroH.querySelector('[data-flip]');
+    if (!flip || !motion) return;
+    const inner = flip.querySelector('.flip-in');
+    if (document.fonts) ['italic 300 1em Newsreader', '100 1em Pencerio', '400 1em "DM Mono"', '400 1em Cabinet'].forEach((f) => document.fonts.load(f).catch(() => {}));
+    const FACES = ['f0', 'f1', 'f2', 'f3', 'f4'];
+    const WORD = inner.textContent.trim();
+    let n = 0, busy = false, onScreen = true;
+    const fill = () => { inner.innerHTML = [...WORD].map((c) => `<span class="ch">${c}</span>`).join(''); return inner.querySelectorAll('.ch'); };
+    const widthOf = (face) => { const m = inner.cloneNode(true); m.className = 'flip-in ' + face; m.style.cssText = 'position:absolute;visibility:hidden;left:0;top:0'; flip.appendChild(m); const w = m.getBoundingClientRect().width; m.remove(); return w; };
+    inner.className = 'flip-in f0'; fill();
+    G.set(flip, { width: widthOf('f0') });
+    const step = () => {
+      if (busy || !onScreen || document.hidden) return;
+      busy = true;
+      const next = FACES[(n = (n + 1) % FACES.length)];
+      const w = widthOf(next);
+      G.timeline()
+        .to(inner.querySelectorAll('.ch'), { yPercent: -110, opacity: 0, duration: 0.34, ease: 'power2.in', stagger: 0.022 })
+        .to(flip, { width: w, duration: 0.75, ease: 'power3.inOut' }, 0.08)
+        .add(() => {
+          inner.className = 'flip-in ' + next;
+          G.fromTo(fill(), { yPercent: 110, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.6, ease: 'power3.out', stagger: 0.03, onComplete: () => { busy = false; } });
+        });
+    };
+    setInterval(step, 4200); // ~1 s change, ~3.2 s hold
+    if ('IntersectionObserver' in window) new IntersectionObserver(([e]) => { onScreen = e.isIntersecting; }).observe(hero);
+    addEventListener('resize', () => G.set(flip, { width: widthOf(inner.className.split(' ')[1]) }));
+  }
   const ready = heroImg.decode ? Promise.race([heroImg.decode().catch(() => {}), new Promise((r) => setTimeout(r, 1000))]) : Promise.resolve();
   ready.then(intro);
 
   /* ---------- HEADER (source: solid past the hero, hides scrolling down .15s, returns scrolling up) ---------- */
-  let lastY = scrollY;
+  /* Hysteresis: hide after 28 px of travel down, show after 14 px up, so a wheel tick or a momentum
+     settle never flickers the bar. */
+  let lastY = scrollY, travel = 0;
   const onScroll = () => {
-    const y = scrollY;
-    const solid = y > hero.offsetHeight - header.offsetHeight - 10;
-    header.classList.toggle('is-solid', solid);
-    const menuOpen = menuEl.classList.contains('is-open');
-    if (!menuOpen && y > lastY + 2 && y > header.offsetHeight * 2) header.classList.add('is-hidden');
-    if (y < lastY - 2 || y < header.offsetHeight) header.classList.remove('is-hidden');
-    lastY = y;
+    const y = scrollY, dy = y - lastY; lastY = y;
+    header.classList.toggle('is-solid', y > hero.offsetHeight - header.offsetHeight - 10);
+    if (menuEl.classList.contains('is-open')) return;
+    travel = (dy > 0) === (travel > 0) ? travel + dy : dy;
+    if (y < header.offsetHeight) { header.classList.remove('is-hidden'); return; }
+    if (travel > 28 && y > header.offsetHeight * 2) header.classList.add('is-hidden');
+    else if (travel < -14) header.classList.remove('is-hidden');
   };
   addEventListener('scroll', onScroll, { passive: true });
 
@@ -140,25 +180,36 @@
   const reveals = () => {
     if (!motion) return;
     document.querySelectorAll('.rv-label').forEach((el) => {
-      G.fromTo(el, { opacity: 0, clipPath: 'inset(0 100% 0 0)' }, { opacity: 1, clipPath: 'inset(0 0% 0 0)', duration: 0.8, ease: OUT, scrollTrigger: { trigger: el, start: 'top 88%', once: true } });
+      G.fromTo(el, { opacity: 0, clipPath: 'inset(0 100% 0 0)' }, { opacity: 1, clipPath: 'inset(0 0% 0 0)', duration: 1.1, ease: SOFT, scrollTrigger: { trigger: el, start: 'top 90%', once: true } });
     });
     document.querySelectorAll('[data-lines]').forEach((el) => {
       const lines = splitLines(el);
-      G.set(lines, { yPercent: 110 });
-      G.to(lines, { yPercent: 0, duration: 1.0, ease: OUT, stagger: 0.08, scrollTrigger: { trigger: el, start: 'top 85%', once: true }, onComplete: () => restore(el) });
+      el.classList.add('is-split');
+      G.set(lines, { y: 0, yPercent: 105, opacity: 0 });
+      // the masks stay after the reveal (swapping back to plain text re-rendered the line mid-scroll); a width change re-flows to plain text
+      G.to(lines, { y: 0, yPercent: 0, opacity: 1, duration: 1.3, ease: SOFT, stagger: 0.1, scrollTrigger: { trigger: el, start: 'top 88%', once: true }, onComplete: () => { el.dataset.done = '1'; } });
     });
     document.querySelectorAll('.rv-list').forEach((el) => {
-      G.to(el.querySelectorAll(':scope > li, :scope > label'), { opacity: 1, y: 0, duration: 0.7, ease: OUT, stagger: 0.06, scrollTrigger: { trigger: el, start: 'top 85%', once: true } });
+      G.to(el.querySelectorAll(':scope > li, :scope > label'), { opacity: 1, y: 0, duration: 1.0, ease: SOFT, stagger: 0.08, scrollTrigger: { trigger: el, start: 'top 88%', once: true } });
     });
     document.querySelectorAll('.rv-fade').forEach((el) => {
-      G.fromTo(el, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.8, ease: OUT, scrollTrigger: { trigger: el, start: 'top 92%', once: true } });
+      G.fromTo(el, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 1.1, ease: SOFT, scrollTrigger: { trigger: el, start: 'top 94%', once: true } });
     });
     document.querySelectorAll('.rv-img').forEach((el) => {
       const box = el.querySelector('.frame, .car');
       const img = el.querySelectorAll('img');
-      const ins = desk.matches ? 14 : 8;
-      G.fromTo(box, { clipPath: `inset(${ins}% 0% ${ins}% 0%)` }, { clipPath: 'inset(0% 0% 0% 0%)', duration: 1.3, ease: OUT, scrollTrigger: { trigger: el, start: 'top 85%', once: true } });
-      G.fromTo(img, { scale: 1.18 }, { scale: 1, duration: 1.6, ease: OUT, clearProps: 'transform', scrollTrigger: { trigger: el, start: 'top 85%', once: true } });
+      const ins = desk.matches ? 9 : 6;
+      const first = img[0];
+      G.set(box, { clipPath: `inset(${ins}% 4% ${ins}% 4%)` }); G.set(first, { scale: 1.12 });
+      const tl = G.timeline({ paused: true })
+        .to(box, { clipPath: 'inset(0% 0% 0% 0%)', duration: 1.5, ease: SOFT }, 0)
+        .to(first, { scale: 1, duration: 1.9, ease: SOFT, clearProps: 'transform' }, 0);
+      // fetch + decode well before the reveal, then play only on a decoded frame (no image arriving mid-reveal)
+      ST.create({ trigger: el, start: 'top bottom+=900', once: true, onEnter: () => img.forEach((im) => { im.loading = 'eager'; }) });
+      ST.create({ trigger: el, start: 'top 88%', once: true, onEnter: () => {
+        const dec = first && first.decode ? first.decode().catch(() => {}) : Promise.resolve();
+        Promise.race([dec, new Promise((r) => setTimeout(r, 700))]).then(() => tl.play());
+      } });
     });
     // full-bleed still: scale + drift through the section
     const still = document.querySelector('[data-still] img');
@@ -174,7 +225,12 @@
       G.to(ws, { opacity: 1, ease: 'none', stagger: 0.1, scrollTrigger: { trigger: read, start: 'top 80%', end: 'bottom 45%', scrub: true } });
     }
   };
-  (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => requestAnimationFrame(reveals));
+  let revealed = false;
+  const go = () => { if (revealed) return; revealed = true; requestAnimationFrame(reveals); };
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(go); setTimeout(go, 1500);
+  // a real width change re-flows split copy to plain text (lines would be wrong); height-only changes (phone bars) do nothing
+  let lastW = innerWidth;
+  addEventListener('resize', () => { if (innerWidth === lastW) return; lastW = innerWidth; document.querySelectorAll('[data-lines][data-done]').forEach(restore); });
 
   /* ---------- EXPAND / COLLAPSE ---------- */
   document.querySelectorAll('[data-more]').forEach((box) => {
